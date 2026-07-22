@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>コマいぬ</title>
+  <link rel="icon" href="assets/komainu-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand-area">
+      <div class="brand-mark" aria-hidden="true"><img src="assets/komainu-icon.png" alt=""></div>
+      <div>
+        <p class="eyebrow">無料ローカルWebアプリ</p>
+        <h1>コマいぬ</h1>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="loadSampleButton" type="button" class="primary">まず試す</button>
+      <button id="resetButton" type="button">白紙から</button>
+      <button id="exportButton" type="button">保存</button>
+      <label class="file-button">
+        読込
+        <input id="importInput" type="file" accept="application/json,.json">
+      </label>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="guide-panel" aria-label="入力ナビ">
+      <section class="guide-start">
+        <p class="eyebrow">次の操作</p>
+        <h2 id="guideTitle">まずは学校情報を選びます</h2>
+        <p id="guideText">学校名だけ入力し、曜日・時限・学年・クラス数は選んで設定します。</p>
+        <button id="guideActionButton" type="button">次へ進む</button>
+      </section>
+
+      <nav class="workflow-steps" aria-label="時間割作成の手順">
+        <button class="tab step-button active" type="button" data-tab="school">
+          <span class="step-number">1</span>
+          <span><strong>学校情報</strong><small>曜日・時限・学年・クラス</small></span>
+        </button>
+        <div class="workflow-group" data-stage-group="2">
+          <div class="step-button static">
+            <span class="step-number">2</span>
+            <span><strong>授業情報</strong><small>教員・教室・授業</small></span>
+          </div>
+          <div class="step-subnav">
+            <button class="tab subtab" type="button" data-tab="teachers">教員</button>
+            <button class="tab subtab" type="button" data-tab="rooms">教室</button>
+            <button class="tab subtab" type="button" data-tab="lessons">授業</button>
+          </div>
+        </div>
+        <button class="tab step-button" type="button" data-tab="fixed">
+          <span class="step-number">3</span>
+          <span><strong>条件設定</strong><small>固定授業・勤務不可</small></span>
+        </button>
+        <div class="generate-panel">
+          <span>入力と条件を確認したら</span>
+          <button id="railGenerateButton" class="primary generate-button" type="button">時間割を作る</button>
+        </div>
+        <button class="tab step-button" type="button" data-tab="results">
+          <span class="step-number">4</span>
+          <span><strong>結果確認</strong><small>全体確認・印刷・保存</small></span>
+        </button>
+      </nav>
+
+      <section class="side-section">
+        <h2>準備状況</h2>
+        <div id="progressChecklist" class="progress-checklist"></div>
+      </section>
+
+      <section class="side-section">
+        <h2>確認メッセージ</h2>
+        <div id="validationMessages" class="message-list"></div>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="workspace-banner">
+        <div class="banner-copy">
+          <p class="eyebrow">コマいぬ</p>
+          <h2 id="guidanceTitle">学校情報を選びましょう</h2>
+          <p id="guidanceText">学校名だけ入力し、ほかの基本設定は選択肢から決めます。</p>
+        </div>
+      </div>
+
+      <div class="next-action-bar">
+        <button id="backStepButton" type="button">戻る</button>
+        <span id="currentStepLabel">1 学校情報</span>
+        <button id="nextStepButton" type="button" class="primary">次へ</button>
+      </div>
+
+      <section id="tab-school" class="tab-panel active">
+        <div class="section-heading">
+          <div>
+            <h2>学校情報</h2>
+            <p>学校名だけ入力し、曜日・時限・学年・クラス数は選択式で決めます。</p>
+          </div>
+        </div>
+
+        <div class="school-setup">
+          <label class="school-name-field">
+            学校名または管理名
+            <input id="schoolNameInput" type="text" maxlength="50">
+          </label>
+
+          <div class="school-choice-grid">
+            <section class="choice-block">
+              <div>
+                <h3>授業を行う曜日</h3>
+                <p>通常は月から金を選びます。</p>
+              </div>
+              <div id="dayChoices" class="choice-row"></div>
+            </section>
+
+            <section class="choice-block">
+              <div>
+                <h3>1日の最大時限数</h3>
+                <p>週の中で授業を入れる可能性がある、いちばん遅い時限を選びます。</p>
+              </div>
+              <div id="periodChoices" class="choice-row"></div>
+            </section>
+
+            <section class="choice-block">
+              <div>
+                <h3>学年数</h3>
+                <p>中学校は通常3学年です。</p>
+              </div>
+              <div id="gradeChoices" class="choice-row"></div>
+            </section>
+          </div>
+
+          <section class="field-group">
+            <div class="inline-heading">
+              <h3>学年ごとのクラス数</h3>
+              <p>各学年のクラス数を選びます。</p>
+            </div>
+            <div id="classCounts" class="class-counts"></div>
+          </section>
+        </div>
+
+        <div id="schoolSummary" class="input-summary"></div>
+      </section>
+
+      <section id="tab-teachers" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <h2>教員</h2>
+            <p>一覧は短く表示し、必要な教員だけ開いて勤務不可時間を設定します。</p>
+          </div>
+          <button id="addTeacherButton" type="button">教員を追加</button>
+        </div>
+
+        <div class="teacher-toolbar">
+          <label>
+            教員を検索
+            <input id="teacherSearchInput" type="search" placeholder="名前・教科で検索">
+          </label>
+          <label>
+            教科で絞り込み
+            <select id="teacherSubjectFilter"></select>
+          </label>
+          <div id="teacherSummary" class="summary-chip"></div>
+        </div>
+        <div id="teachersList" class="teachers-list"></div>
+      </section>
+
+      <section id="tab-rooms" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <h2>教室</h2>
+            <p>特別教室の種類と数を設定します。</p>
+          </div>
+          <button id="addRoomButton" type="button">教室を追加</button>
+        </div>
+        <div id="roomsList" class="editable-list"></div>
+      </section>
+
+      <section id="tab-lessons" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <h2>授業</h2>
+            <p>教科、週時数、担当教員、使う教室をそろえます。</p>
+          </div>
+          <button id="addLessonButton" type="button">授業を追加</button>
+        </div>
+        <div id="lessonsList" class="editable-list wide"></div>
+      </section>
+
+      <section id="tab-fixed" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <h2>条件設定</h2>
+            <p>固定したい授業を選び、表の空きマスをクリックします。</p>
+          </div>
+        </div>
+        <div class="fixed-board-panel">
+          <div class="fixed-board-lead">
+            <div>
+              <h3>固定授業を表で入れる</h3>
+              <p>1. クラスを選ぶ  2. 授業を選ぶ  3. 表のマスをクリック</p>
+            </div>
+            <div id="fixedBoardStatus" class="fixed-board-status"></div>
+          </div>
+          <div class="fixed-board-controls">
+            <label>
+              固定するクラス
+              <select id="fixedClassSelect"></select>
+            </label>
+            <label>
+              固定する授業
+              <select id="fixedLessonSelect"></select>
+            </label>
+          </div>
+          <p id="fixedBoardHint" class="fixed-board-hint"></p>
+          <div id="fixedBoard" class="fixed-board"></div>
+        </div>
+        <div id="sameDayExceptionPanel" class="exception-panel"></div>
+      </section>
+
+      <section id="tab-results" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <h2>結果確認</h2>
+            <p>作成した時間割候補を確認します。</p>
+          </div>
+          <button id="printButton" type="button">印刷 / PDF</button>
+        </div>
+        <div id="candidateSummary" class="candidate-summary"></div>
+        <label class="compact-label">
+          表示クラス
+          <select id="classViewSelect"></select>
+        </label>
+        <div id="timetableGrid" class="timetable-grid"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>
