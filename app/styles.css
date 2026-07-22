@@ -955,6 +955,25 @@ label {
   padding: 0 14px 14px;
 }
 
+.curriculum-sync-guide {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #9ecfc8;
+  border-radius: 8px;
+  background: #eef9f7;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.curriculum-sync-guide strong {
+  color: var(--primary);
+}
+
+.curriculum-sync-guide span {
+  color: var(--muted);
+}
+
 .curriculum-toolbar,
 .curriculum-row {
   display: grid;
@@ -972,6 +991,22 @@ label {
 
 .curriculum-row button {
   align-self: end;
+}
+
+.curriculum-row-actions {
+  display: grid;
+  gap: 5px;
+  align-self: stretch;
+}
+
+.curriculum-row-actions button {
+  width: 100%;
+}
+
+.curriculum-sync-target {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 .curriculum-list {

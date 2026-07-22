@@ -212,3 +212,16 @@
 | Verification | Chrome fresh/restore/reset/sample/cancel/scroll/mobile passed with zero errors; syntax 8/8; safety 14/14; representative acceptance 6/6. |
 | Known failures | KF-011 and KF-016 were not reproduced after the revision. No new recurring failure was identified. |
 | Evidence | `artifacts/verification/navigation_start_feedback_2026-07-18.md` |
+
+## 2026-07-22 Curriculum Reflection Revision Review
+| Item | Content |
+| --- | --- |
+| Scope | Curriculum-to-lesson data path, subject identity, sync UI, actionable warnings, double-period capacity, focused regression and browser evidence |
+| Skills | `debugging-diagnosis` -> project `revision` -> `production` -> `timetable-validation` -> `quality-review` |
+| Gate | User-reported outcome, H-003/H-007 preservation, no silent destructive changes, clear action/impact, JSON compatibility, mobile operation, KF-011/KF-016/KF-018 |
+| Result | Passed for the reported scope. Grade 2/3 Art master changes now reach existing lesson requirements through an explicit confirmed action and generate two adjacent periods in every affected class. |
+| Safety | Teachers and fixed times are preserved; stale candidates are cleared with Undo; fractional/zero, duplicate, inactive, fixed-overflow and combined-group cases are blocked instead of guessed. |
+| Automated evidence | Syntax 11/11, curriculum reflection 7/7, safety 14/14, representative acceptance 6/6; unchanged baseline 3 x 174 with hard violations 0; changed Art scenario 3 x 178 with hard violations 0. |
+| Browser evidence | Target count and confirmation text visible; all four grade 2/3 Art lesson rows became 2/required/limit2; all result pairs adjacent; 390px overflow 0; console/page errors 0. |
+| Remaining failure | Overall final-quality gate remains open for actual-school evidence, manual result correction/history, teacher/room views, and final user approval. |
+| Evidence | `artifacts/verification/curriculum_reflection_2026-07-22.md` |

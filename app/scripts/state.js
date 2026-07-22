@@ -195,13 +195,20 @@
     next.rooms = Array.isArray(next.rooms) ? next.rooms : [];
     next.lessons = Array.isArray(next.lessons) ? next.lessons : [];
     next.curriculum = normalizeCurriculum(next.curriculum);
+    const curriculumSubjectsById = new Map(next.curriculum.subjects.map((subject) => [subject.id, subject]));
+    const curriculumSubjectsByName = new Map(
+      next.curriculum.subjects.filter((subject) => subject.name).map((subject) => [subject.name, subject])
+    );
     next.lessons = next.lessons.map((lesson) => {
       const migrated = migrateLessonSubject(lesson);
       const doubleMode = getDoubleMode(lesson);
+      const curriculumSubject = curriculumSubjectsById.get(migrated.curriculumSubjectId)
+        || curriculumSubjectsByName.get(migrated.subject);
       return Object.assign({}, migrated, {
+        curriculumSubjectId: curriculumSubject ? curriculumSubject.id : "",
         doubleMode,
         allowDouble: doubleMode !== "none",
-        sameDayLimit: doubleMode === "required" ? Math.max(Number(migrated.sameDayLimit || 1), 2) : migrated.sameDayLimit
+        sameDayLimit: doubleMode !== "none" ? Math.max(Number(migrated.sameDayLimit || 1), 2) : migrated.sameDayLimit
       });
     });
     next.fixedAssignments = Array.isArray(next.fixedAssignments) ? next.fixedAssignments : [];
@@ -419,6 +426,147 @@
     return next;
   }
 
+  function getCurriculumSubjectSyncPlan(rawState, subjectId) {
+    const state = normalizeState(clone(rawState));
+    const subject = state.curriculum.subjects.find((item) => item.id === subjectId);
+    const plan = {
+      subjectId,
+      subjectName: subject ? subject.name : "",
+      lessonIds: [],
+      lessonCount: 0,
+      changeCount: 0,
+      fixedAssignmentCount: 0,
+      missingClassNames: [],
+      blockers: []
+    };
+    if (!subject) {
+      plan.blockers.push("教育課程マスタの教科が見つかりません。画面を読み直してから再度お試しください。");
+      return plan;
+    }
+    if (subject.active === false) {
+      plan.blockers.push("「使わない」の教科は自動削除しません。不要な授業は授業情報で内容を確認してから削除してください。");
+      return plan;
+    }
+    const combinedGroup = state.curriculum.hourCheckMode === "combined"
+      ? state.curriculum.hourGroups.find((group) => {
+        return group.active !== false && (group.subjectNames || []).includes(subject.name);
+      })
+      : null;
+    if (combinedGroup) {
+      plan.blockers.push(`${subject.name}は「${combinedGroup.name}」の合算時数で確認しています。教科ごとの配分はクラスによって異なるため、一括反映せず授業情報で個別に調整してください。`);
+      return plan;
+    }
+
+    const classes = getClasses(state);
+    const classesById = new Map(classes.map((klass) => [klass.id, klass]));
+    const matchingLessons = state.lessons.filter((lesson) => {
+      return lesson.curriculumSubjectId === subject.id
+        || (!lesson.curriculumSubjectId && lesson.subject === subject.name);
+    });
+    const lessonsByClass = new Map();
+    matchingLessons.forEach((lesson) => {
+      const rows = lessonsByClass.get(lesson.classId) || [];
+      rows.push(lesson);
+      lessonsByClass.set(lesson.classId, rows);
+    });
+
+    lessonsByClass.forEach((lessons, classId) => {
+      const klass = classesById.get(classId);
+      const className = klass ? klass.name : classId;
+      if (lessons.length > 1) {
+        plan.blockers.push(`${className} ${subject.name}の授業情報が${lessons.length}件あります。担当分けの可能性があるため、自動反映せず個別に確認してください。`);
+      }
+    });
+
+    const mode = DOUBLE_MODES.includes(subject.defaultDoubleMode) ? subject.defaultDoubleMode : "none";
+    const roomType = subject.defaultRoomType || "普通教室";
+    matchingLessons.forEach((lesson) => {
+      const klass = classesById.get(lesson.classId);
+      const className = klass ? klass.name : lesson.classId;
+      if (!klass) {
+        plan.blockers.push(`${className || subject.name}の学年を判定できません。`);
+        return;
+      }
+      const expected = Number(subject.weeklyByGrade?.[klass.grade] || 0);
+      if (!Number.isInteger(expected) || expected < 1) {
+        const reason = expected > 0
+          ? `週${expected}コマは1週間の時間割へ直接置けません`
+          : "週0コマは授業行の削除判断が必要です";
+        plan.blockers.push(`${className} ${subject.name}: ${reason}。授業情報で個別に調整してください。`);
+        return;
+      }
+      if (mode === "required" && (expected < 2 || expected % 2 !== 0)) {
+        plan.blockers.push(`${className} ${subject.name}: 連続必須は週時数を2以上の偶数にしてください（現在 ${expected}）。`);
+        return;
+      }
+      const fixedCount = state.fixedAssignments.filter((fixed) => fixed.lessonId === lesson.id).length;
+      if (fixedCount > expected) {
+        plan.blockers.push(`${className} ${subject.name}: 固定済み${fixedCount}コマが反映後の週${expected}コマを超えるため、先に固定授業を減らしてください。`);
+        return;
+      }
+      plan.lessonIds.push(lesson.id);
+      plan.fixedAssignmentCount += fixedCount;
+      const needsChange = lesson.subject !== subject.name
+        || Number(lesson.weeklyCount || 0) !== expected
+        || lesson.roomType !== roomType
+        || getDoubleMode(lesson) !== mode
+        || (mode !== "none" && Number(lesson.sameDayLimit || 1) < 2);
+      if (needsChange) plan.changeCount += 1;
+    });
+
+    plan.lessonCount = plan.lessonIds.length;
+    classes.forEach((klass) => {
+      const expected = Number(subject.weeklyByGrade?.[klass.grade] || 0);
+      if (expected > 0 && !(lessonsByClass.get(klass.id) || []).length) {
+        plan.missingClassNames.push(klass.name);
+      }
+    });
+    return plan;
+  }
+
+  function applyCurriculumSubjectToLessons(rawState, subjectId) {
+    const plan = getCurriculumSubjectSyncPlan(rawState, subjectId);
+    if (plan.blockers.length) {
+      const error = new Error(plan.blockers.join("\n"));
+      error.code = "CURRICULUM_SYNC_BLOCKED";
+      error.plan = plan;
+      throw error;
+    }
+    if (!plan.lessonCount) {
+      const error = new Error("この教科と結び付いた既存の授業情報がありません。先に授業を追加してください。");
+      error.code = "CURRICULUM_SYNC_NO_LESSONS";
+      error.plan = plan;
+      throw error;
+    }
+
+    const next = normalizeState(clone(rawState));
+    const subject = next.curriculum.subjects.find((item) => item.id === subjectId);
+    const classesById = new Map(getClasses(next).map((klass) => [klass.id, klass]));
+    const lessonIds = new Set(plan.lessonIds);
+    const mode = DOUBLE_MODES.includes(subject.defaultDoubleMode) ? subject.defaultDoubleMode : "none";
+    const roomType = subject.defaultRoomType || "普通教室";
+    next.lessons = next.lessons.map((lesson) => {
+      if (!lessonIds.has(lesson.id)) return lesson;
+      const klass = classesById.get(lesson.classId);
+      const weeklyCount = Number(subject.weeklyByGrade?.[klass.grade] || 0);
+      return Object.assign({}, lesson, {
+        curriculumSubjectId: subject.id,
+        subject: subject.name,
+        weeklyCount,
+        roomType,
+        doubleMode: mode,
+        allowDouble: mode !== "none",
+        sameDayLimit: mode !== "none" ? Math.max(Number(lesson.sameDayLimit || 1), 2) : lesson.sameDayLimit
+      });
+    });
+    next.fixedAssignments = next.fixedAssignments.map((fixed) => {
+      return lessonIds.has(fixed.lessonId) ? Object.assign({}, fixed, { roomType }) : fixed;
+    });
+    next.candidates = [];
+    next.selectedCandidateId = null;
+    return { state: next, plan };
+  }
+
   function getCurriculumSubjects(state) {
     return normalizeCurriculum(state.curriculum).subjects.filter((subject) => subject.active !== false && subject.name);
   }
@@ -449,6 +597,8 @@
     removeTeacher,
     getLessonDeletionImpact,
     removeLesson,
+    getCurriculumSubjectSyncPlan,
+    applyCurriculumSubjectToLessons,
     getCurriculumSubjects
   };
 })(globalThis);

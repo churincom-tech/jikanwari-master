@@ -43,7 +43,11 @@
         message.fixTab = "teachers";
         errors.push(message);
       }
-      if (App.State.getDoubleMode(lesson) === "required") {
+      const doubleMode = App.State.getDoubleMode(lesson);
+      if (doubleMode === "preferred" && Number(lesson.weeklyCount || 0) >= 2 && Number(lesson.sameDayLimit || 1) < 2) {
+        warnings.push(makeMessage("warning", `${lesson.subject || "未設定教科"}で連続配置を優先するには、同じ日に入れる上限を2以上にしてください。`, lesson.id));
+      }
+      if (doubleMode === "required") {
         if (Number(lesson.weeklyCount || 0) < 2) {
           errors.push(makeMessage("error", `${lesson.subject || "未設定教科"}は2時間連続必須のため、週時数を2以上にしてください。`, lesson.id));
         }
@@ -183,7 +187,9 @@
 
     state.lessons.forEach((lesson) => {
       if (lesson.subject && !knownNames.has(lesson.subject)) {
-        warnings.push(makeMessage("warning", `${lesson.subject} は教育課程マスタにありません。地域独自教科の場合はマスタに追加できます。`, lesson.id));
+        const message = makeMessage("warning", `${lesson.subject} は教育課程マスタにありません。地域独自教科の場合はマスタに追加できます。`, lesson.id);
+        message.fixTab = "lessons";
+        warnings.push(message);
       }
     });
 
@@ -222,11 +228,13 @@
           .filter((lesson) => check.subjectNames.includes(lesson.subject))
           .reduce((sum, lesson) => sum + Number(lesson.weeklyCount || 0), 0);
         if (Math.abs(actual - expected) > 0.75) {
-          warnings.push(makeMessage(
+          const message = makeMessage(
             "warning",
-            `${klass.name} ${check.name}: マスタ目安 ${formatHours(expected)} / 入力 ${formatHours(actual)} です。必要なら教育課程マスタか授業情報を調整してください。`,
+            `${klass.name} ${check.name}: 基準 ${formatHours(expected)}コマに対して、実際に生成で使う授業情報は ${formatHours(actual)}コマです。基準を使う場合は、教育課程マスタの教科行で「授業情報へ反映」を押してください。`,
             klass.id
-          ));
+          );
+          message.fixTab = "lessons";
+          warnings.push(message);
         }
       });
     });

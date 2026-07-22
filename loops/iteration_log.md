@@ -223,3 +223,15 @@
 | Reflect | Persisting the last local state is safer than forcing blank on every launch. Making that restoration explicit and keeping blank start visible resolves the ambiguity without sacrificing recovery. |
 | Update harness | Added a focused verification report and desktop/mobile screenshots; updated design QA, task state, review, and recognition records. |
 | Carryover | Observe whether users prefer the how-to section open permanently or collapsed after first use. |
+
+## 2026-07-22 Curriculum Master Reflection Revision
+| Item | Content |
+| --- | --- |
+| Trigger | User showed that grade 2/3 Art remained one period in generated timetables after changing the curriculum master to two required adjacent periods, and suspected other lesson settings were also not reflected. |
+| State / diagnosis | Reproduced the mismatch: the master held 2/required while four existing grade 2/3 lesson rows remained 1/none. Generation correctly used the lesson rows; the missing responsibility was a visible, safe master-to-lesson synchronization path. |
+| Plan / act | Added stable curriculum subject IDs, per-subject preview/confirmation and Undo, synchronized name/hours/room/double rule, preserved teacher/fixed time, updated fixed room metadata, and made mismatch guidance actionable. |
+| Safety controls | Blocked fractional/zero weekly values, odd required doubles, duplicate class/subject rows, fixed overflow, inactive subjects, and combined-group flattening. Corrected preferred double same-day capacity. |
+| Verify | Syntax 11/11; curriculum reflection 7/7; safety 14/14; representative acceptance 6/6. Chrome verified the user flow, 3 x 178-entry candidates, hard violations 0, adjacent Art pairs in all grade 2/3 classes, 390px no overflow, and zero console/page errors. |
+| Harness issue | The first browser script selected a hidden lesson subtab directly; it was corrected to follow the visible Stage 2 -> Lesson navigation. Image preview later hit the known sandbox helper failure, while browser screenshots and DOM measurements were retained. |
+| Reflect | Reference/default data and operational generation data need an explicit boundary and transfer action. A warning without an apply path is insufficient, and combined annual-hour groups must not be flattened automatically. |
+| Evidence | `artifacts/verification/curriculum_reflection_2026-07-22.md`, screenshots, and `tests/curriculum-reflection.test.js` |

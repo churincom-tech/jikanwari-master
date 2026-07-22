@@ -169,10 +169,11 @@
         id: App.State.uid("lesson"),
         classId: firstClass ? firstClass.id : "",
         subject: defaultSubject.name,
+        curriculumSubjectId: defaultSubject.id || "",
         weeklyCount: doubleMode === "required" ? 2 : 1,
         teacherId: firstTeacher ? firstTeacher.id : "",
         roomType: defaultSubject.defaultRoomType,
-        sameDayLimit: doubleMode === "required" ? 2 : 1,
+        sameDayLimit: doubleMode !== "none" ? 2 : 1,
         allowDouble: doubleMode !== "none",
         doubleMode
       });
@@ -720,6 +721,10 @@
     const curriculum = state.curriculum;
     root.innerHTML = `
       <div class="curriculum-panel">
+        <div class="curriculum-sync-guide" role="note">
+          <strong>ここは全クラスの基準設定です。</strong>
+          <span>変更した週時数・教科名・標準教室・配置ルールを既存の授業に使うときは、その教科の「授業情報へ反映」を押してください。担当教員と固定する曜日・時限は変わりません。</span>
+        </div>
         <div class="curriculum-toolbar">
           <label>設定名<input data-curriculum-field="name" type="text" value="${escapeAttr(curriculum.name || "")}"></label>
           <label>標準時数チェック
@@ -773,6 +778,9 @@
     root.querySelectorAll("[data-subject-id]").forEach((row) => {
       const subject = curriculum.subjects.find((item) => item.id === row.dataset.subjectId);
       if (!subject) return;
+      row.querySelector('[data-action="sync"]').addEventListener("click", () => {
+        syncCurriculumSubject(subject.id);
+      });
       row.querySelector('[data-field="active"]').addEventListener("change", (event) => {
         subject.active = event.target.value === "true";
         touchCurriculum(true);
@@ -829,18 +837,67 @@
   }
 
   function curriculumSubjectRow(subject) {
+    const plan = App.State.getCurriculumSubjectSyncPlan(state, subject.id);
+    const targetText = plan.blockers.length
+      ? "反映前に設定確認"
+      : (plan.lessonCount ? `既存 ${plan.lessonCount}件が対象` : "対応する授業なし");
     return `
       <div class="curriculum-row" data-subject-id="${escapeAttr(subject.id)}">
-        <label>使用<select data-field="active"><option value="true" ${subject.active !== false ? "selected" : ""}>使う</option><option value="false" ${subject.active === false ? "selected" : ""}>使わない</option></select></label>
+        <label>標準チェック<select data-field="active"><option value="true" ${subject.active !== false ? "selected" : ""}>対象</option><option value="false" ${subject.active === false ? "selected" : ""}>対象外</option></select></label>
         <label>教科名<input data-field="name" type="text" value="${escapeAttr(subject.name)}"></label>
         <label>標準教室<input data-field="room" type="text" value="${escapeAttr(subject.defaultRoomType || "普通教室")}"></label>
         <label>1年 週時数<input data-grade="1" type="number" min="0" max="30" step="0.5" value="${subject.weeklyByGrade?.[1] || 0}"></label>
         <label>2年 週時数<input data-grade="2" type="number" min="0" max="30" step="0.5" value="${subject.weeklyByGrade?.[2] || 0}"></label>
         <label>3年 週時数<input data-grade="3" type="number" min="0" max="30" step="0.5" value="${subject.weeklyByGrade?.[3] || 0}"></label>
         <label>配置ルール<select data-field="double">${doubleModeOptions({ doubleMode: subject.defaultDoubleMode || "none" })}</select></label>
-        <button class="danger" type="button">削除</button>
+        <div class="curriculum-row-actions">
+          <button data-action="sync" type="button" ${subject.active === false ? "disabled" : ""}>授業情報へ反映</button>
+          <span class="curriculum-sync-target">${escapeHtml(targetText)}</span>
+          <button class="danger" type="button">削除</button>
+        </div>
       </div>
     `;
+  }
+
+  function syncCurriculumSubject(subjectId) {
+    const plan = App.State.getCurriculumSubjectSyncPlan(state, subjectId);
+    if (plan.blockers.length) {
+      alert(["この設定は授業情報へ反映できません。", "", ...plan.blockers].join("\n"));
+      return;
+    }
+    if (!plan.lessonCount) {
+      alert("この教科に対応する既存の授業情報がありません。先に下の「授業を追加」で、クラスと担当教員を設定してください。");
+      return;
+    }
+    if (!plan.changeCount) {
+      alert(`${plan.subjectName}は、週時数・教科名・教室・配置ルールがすでに授業情報へ反映されています。`);
+      return;
+    }
+    const missingText = plan.missingClassNames.length
+      ? `\n\n授業情報がないため反映されないクラス: ${plan.missingClassNames.join("、")}`
+      : "";
+    const message = [
+      `${plan.subjectName}の基準設定を、既存の授業情報 ${plan.lessonCount}件へ反映します。`,
+      "反映する項目: 教科名、学年別週時数、標準教室、配置ルール",
+      "保持する項目: 担当教員、固定する曜日・時限",
+      "クラスごとの個別設定は、この基準値で上書きされます。",
+      "作成済みの時間割候補は破棄されます。",
+      missingText,
+      "",
+      "続けますか？"
+    ].filter(Boolean).join("\n");
+    if (!confirm(message)) return;
+
+    const previousState = App.State.clone(state);
+    try {
+      const result = App.State.applyCurriculumSubjectToLessons(state, subjectId);
+      state = result.state;
+      renderAll();
+      runValidation();
+      setUndoSnapshot(previousState, `${plan.subjectName}の基準設定の反映`);
+    } catch (error) {
+      alert(`授業情報へ反映できませんでした。\n${error.message || "設定を確認してください。"}`);
+    }
   }
 
   function curriculumGroupRow(group) {
@@ -903,7 +960,11 @@
         <button class="danger" type="button">削除</button>
       `;
       bindRowField(row, "classId", (value) => { lesson.classId = value; });
-      bindRowField(row, "subject", (value) => { lesson.subject = value; });
+      bindRowField(row, "subject", (value) => {
+        lesson.subject = value;
+        const curriculumSubject = state.curriculum.subjects.find((subject) => subject.name === value);
+        lesson.curriculumSubjectId = curriculumSubject ? curriculumSubject.id : "";
+      });
       bindRowNumber(row, "weeklyCount", (value) => { lesson.weeklyCount = clamp(value, 1, 30); });
       bindRowField(row, "teacherId", (value) => { lesson.teacherId = value; });
       bindRowField(row, "roomType", (value) => { lesson.roomType = value; });
@@ -911,10 +972,12 @@
       row.querySelector('[data-field="doubleMode"]').addEventListener("change", (event) => {
         lesson.doubleMode = event.target.value;
         lesson.allowDouble = lesson.doubleMode !== "none";
+        if (lesson.doubleMode !== "none" && Number(lesson.sameDayLimit || 1) < 2) {
+          lesson.sameDayLimit = 2;
+        }
         if (lesson.doubleMode === "required") {
           const weeklyCount = Number(lesson.weeklyCount || 0);
           lesson.weeklyCount = weeklyCount < 2 ? 2 : (weeklyCount % 2 === 0 ? weeklyCount : weeklyCount + 1);
-          if (Number(lesson.sameDayLimit || 1) < 2) lesson.sameDayLimit = 2;
         }
         renderLessons();
         touch();

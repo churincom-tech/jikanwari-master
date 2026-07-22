@@ -1,7 +1,27 @@
 # Task State
 
+## 2026-07-22 Curriculum Reflection Revision Start
+| Item | Content |
+| --- | --- |
+| Current phase | User-reported curriculum-to-lesson reflection defect investigation and revision in progress |
+| Symptom | Changing grade 2/3 Art to 2 periods and required double periods in the curriculum master leaves existing lesson requirements at 1 period / ordinary placement, so generated timetables contain only one Art period. |
+| Confirmed cause | Generation reads `lessons.weeklyCount`, `roomType`, and `doubleMode`; curriculum edits currently change only reference/default data and a non-blocking hours warning. |
+| Approved scope | Add a safe explicit curriculum-subject-to-existing-lessons sync, make its data boundary and action visible, improve mismatch guidance, and verify weekly periods, room, placement rule, identity, fixed references, and generated results. |
+| Safety boundary | Keep teacher assignments and fixed times; reject values that cannot be represented as weekly slots; do not silently delete lessons for inactive/zero-period subjects. |
+| Verification plan | Focused pure-state regression, syntax, safety 14/14, representative acceptance 6/6, sample generation, and desktop/mobile browser flow for grade 2/3 Art. |
+
+## 2026-07-22 Curriculum Reflection Revision Complete
+| Item | Content |
+| --- | --- |
+| Current phase | User-reported curriculum reflection defect corrected and verified |
+| Work | Added stable curriculum-subject identity and explicit per-subject sync for name, grade hours, room, and placement rule; preserved teachers/fixed times; added actionable mismatch guidance, Undo, and unsafe-sync blockers. |
+| Additional correction | Preferred double placement now keeps a same-day limit of at least 2; combined curriculum groups are protected from unsafe per-subject flattening. |
+| Verification | Syntax 11/11, curriculum reflection 7/7, safety 14/14, representative acceptance 6/6. Browser generated 3 valid 178-entry candidates after the reported Art change; all grade 2/3 classes had adjacent Art pairs and browser errors were 0. |
+| Evidence | `artifacts/verification/curriculum_reflection_2026-07-22.md` and desktop/mobile screenshots |
+| Carryover | Actual-school validation, manual result correction/history, teacher/room result views, and final whole-product approval. |
+
 ## 現在フェーズ
-ページ遷移・開始方法UIの修正・検証完了
+教育課程マスタ反映不具合の修正・検証完了
 
 ## 最終目的
 中学校の教務担当者、管理職、時間割作成担当者が使える時間割自動作成Webアプリを、要件整理、設計、試作、評価、改善を経て作る。
@@ -31,16 +51,16 @@
 - 有料API、外部API、外部CDNは使わない
 
 ## 直近判断
-既存のHTML/CSS/Vanilla JavaScript構成と機能を維持し、画面を「学校情報 -> 授業情報 -> 条件設定 -> 結果確認」の4段階へ統合した。条件設定は表クリックを主操作、警告は作成停止・確認・改善の3段階、次操作は固定下部バーに集約する。学校別に異なる開始・終了時刻は生成に使わないため表示せず、行名は1限〜n限だけにする。
+教育課程マスタは全クラスの基準、授業情報は実際の生成条件として区別する。基準変更は教科ごとの確認つき反映で既存授業へ同期し、担当教員と固定時刻は保持する。小数・0コマ、重複授業、合算時数など一括反映が危険な場合は止めて個別調整へ案内する。
 
 ## 品質状態
-代表シナリオで3候補を生成し、全候補174コマ、ハード制約違反0件を確認済み。H-001〜H-013とS-001〜S-007、JSON安全性14/14、代表受入6/6が合格。Chromeで4段階移動、固定追加解除、3段階警告、候補表示、390px表示、コンソールエラー0を確認済み。実学校データ、結果の手修正、教員別・教室別表示、最終承認は未完了。
+通常サンプルは3候補 x 174コマ、報告された美術変更後は3候補 x 178コマで、いずれもハード制約違反0件。2・3年の全クラスで美術2コマ連続を確認済み。H-001〜H-013とS-001〜S-007、教育課程反映7/7、JSON安全性14/14、代表受入6/6が合格。Chromeで反映確認、Undo、候補表示、390px表示、コンソールエラー0を確認済み。実学校データ、結果の手修正、教員別・教室別表示、最終承認は未完了。
 
 ## ブロッカー
-- 実学校データまたは具体的なサンプル条件が未提供
+- 学校全体の実データは未提供
 
 ## 次の最小アクション
-今回のページ遷移・開始方法の修正をユーザーに再確認してもらう。次の機能実装候補は、生成後の時間割を現場で調整できる手修正と変更履歴であり、別スコープとして承認を得てから進める。
+今回の「授業情報へ反映」操作と生成結果をユーザーに再確認してもらう。次の機能実装候補は、生成後の時間割を現場で調整できる手修正と変更履歴であり、別スコープとして承認を得てから進める。
 
 ## 反復回数
 | ループ | 回数 |
@@ -48,8 +68,8 @@
 | コンテキスト収集 | 0 |
 | 設計 | 3 |
 | 試作 | 1 |
-| 実装 | 5 |
-| レビュー・修正 | 5 |
+| 実装 | 6 |
+| レビュー・修正 | 6 |
 | ハーネス改善 | 0 |
 ## 2026-07-02 State Update
 | Item | Content |
